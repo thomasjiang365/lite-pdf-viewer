@@ -21,7 +21,16 @@ const electronHandler = {
     once(channel: Channels, func: (...args: unknown[]) => void) {
       ipcRenderer.once(channel, (_event, ...args) => func(...args));
     },
+    setStoreValue: (key: string, value: any) => {
+      ipcRenderer.send('setStore', key, value);
+    },
+    getStoreValue(key: string) {
+      const resp = ipcRenderer.sendSync('getStore', key);
+      return resp;
+    },
   },
+  openDialog: (method: any, config: any) =>
+    ipcRenderer.invoke('dialog', method, config),
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

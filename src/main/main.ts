@@ -9,11 +9,24 @@
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
 import path from 'path';
-import { app, BrowserWindow, shell, ipcMain } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, dialog } from 'electron';
+import type Electron from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
+import Store from 'electron-store';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
+import { AsyncMethodsOf } from '../utility/UtilityTypes';
+import { StoreType } from '../models';
+import { SAVE_FILE_KEY } from '../renderer/config';
+
+// const Store = require('electron-store');
+
+const store = new Store<StoreType>({
+  defaults: {
+    SAVE_FILE_KEY: [],
+  },
+});
 
 class AppUpdater {
   constructor() {
@@ -29,6 +42,15 @@ ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
   console.log(msgTemplate(arg));
   event.reply('ipc-example', msgTemplate('pong'));
+});
+
+ipcMain.on('setStore', (_, key, value) => {
+  store.set(key, value);
+});
+
+ipcMain.on('getStore', (_, key) => {
+  const value = (store as any).get(key);
+  _.returnValue = value || '';
 });
 
 if (process.env.NODE_ENV === 'production') {
@@ -75,6 +97,7 @@ const createWindow = async () => {
     height: 728,
     icon: getAssetPath('icon.png'),
     webPreferences: {
+      webSecurity: false,
       preload: app.isPackaged
         ? path.join(__dirname, 'preload.js')
         : path.join(__dirname, '../../.erb/dll/preload.js'),
@@ -132,6 +155,15 @@ app
       // On macOS it's common to re-create a window in the app when the
       // dock icon is clicked and there are no other windows open.
       if (mainWindow === null) createWindow();
+    });
+
+    ipcMain.handle('dialog', (event, method, params) => {
+      const dialogMethod = dialog[
+        method as AsyncMethodsOf<Electron.Dialog>
+      ] as Function;
+      if (typeof dialogMethod !== 'function')
+        return Promise.reject(new Error(`Invalid dialog method: ${method}`));
+      return dialogMethod(params);
     });
   })
   .catch(console.log);
